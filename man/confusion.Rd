@@ -31,14 +31,14 @@ confusion(x, \dots)
     labels = c("Actual", "Predicted"), useNA = "ifany", prior, \dots)
 
 \method{print}{confusion}(x, sums = TRUE, error.col = sums, digits = 0,
-    sort = "ward", \dots)
+    sort = "ward.D2", \dots)
 \method{summary}{confusion}(object, type = "all", sort.by = "Fscore",
     decreasing = TRUE, \dots)
 \method{print}{summary.confusion}(x, \dots)
 \method{plot}{confusion}(x, y = NULL, type = c("image", "barplot", "stars",
     "dendrogram"), stat1 = "Recall", stat2 = "Precision", names, \dots)
 
-confusionImage(x, y = NULL, labels = names(dimnames(x)), sort = "ward",
+confusionImage(x, y = NULL, labels = names(dimnames(x)), sort = "ward.D2",
     numbers = TRUE, digits = 0, mar = c(3.1, 10.1, 3.1, 3.1), cex = 1, asp = 1,
     colfun, ncols = 41, col0 = FALSE, grid.col = "gray", \dots)
 confusionBarplot(x, y = NULL, col = c("PeachPuff2", "green3", "lemonChiffon2"),
@@ -47,7 +47,7 @@ confusionBarplot(x, y = NULL, col = c("PeachPuff2", "green3", "lemonChiffon2"),
     \dots)
 confusionStars(x, y = NULL, stat1 = "Recall", stat2 = "Precision", names, main,
     col = c("green2", "blue2", "green4", "blue4"), \dots)
-confusionDendrogram(x, y = NULL, labels = rownames(x), sort = "ward",
+confusionDendrogram(x, y = NULL, labels = rownames(x), sort = "ward.D2",
     main = "Groups clustering", \dots)
 
 prior(object, \dots)
@@ -83,7 +83,7 @@ prior(object, \dots) <- value
   \item{sort}{ are rows and columns of the confusion matrix sorted so that
     classes with larger confusion are closer together? Sorting is done
     using a hierachical clustering with \code{hclust()}. The clustering method
-    is provided is the one provides (\code{"ward"}, by default, but see the
+    is provided is the one provides (\code{"ward.D2"}, by default, but see the
     \code{hclust()} help for other options). If \code{FALSE} or \code{NULL}, no
     sorting is done. }
   \item{object}{ a 'confusion' object. }

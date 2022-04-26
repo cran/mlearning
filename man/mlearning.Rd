@@ -24,6 +24,11 @@
 \alias{mlNnet}
 \alias{mlNnet.default}
 \alias{mlNnet.formula}
+\alias{predict.mlNnet}
+\alias{mlKnn}
+\alias{mlKnn.default}
+\alias{mlKnn.formula}
+\alias{predict.mlKnn}
 \alias{mlLvq}
 \alias{mlLvq.default}
 \alias{mlLvq.formula}
@@ -35,6 +40,7 @@
 \alias{mlNaiveBayes}
 \alias{mlNaiveBayes.default}
 \alias{mlNaiveBayes.formula}
+\alias{predict.mlNaiveBayes}
 \alias{response}
 \alias{response.default}
 \alias{train}
@@ -56,57 +62,67 @@ mlearning(formula, data, method, model.args, call = match.call(), ...,
 \method{plot}{mlearning}(x, y, ...)
 \method{predict}{mlearning}(object, newdata, type = c("class", "membership", "both"),
     method = c("direct", "cv"), na.action = na.exclude, ...)
-    
+
 cvpredict(object, ...)
 \method{cvpredict}{mlearning}(object, type = c("class", "membership", "both"),
     cv.k = 10, cv.strat = TRUE, ...)
 
-mlLda(...)
+mlLda(train, ...)
 \method{mlLda}{default}(train, response, ...)
 \method{mlLda}{formula}(formula, data, ..., subset, na.action)
 \method{predict}{mlLda}(object, newdata, type = c("class", "membership", "both",
     "projection"), prior = object$prior, dimension,
     method = c("plug-in", "predictive", "debiased", "cv"), ...)
 
-mlQda(...)
+mlQda(train, ...)
 \method{mlQda}{default}(train, response, ...)
 \method{mlQda}{formula}(formula, data, ..., subset, na.action)
 \method{predict}{mlQda}(object, newdata, type = c("class", "membership", "both"),
     prior = object$prior, method = c("plug-in", "predictive", "debiased",
     "looCV", "cv"), ...)
 
-mlRforest(...)
+mlRforest(train, ...)
 \method{mlRforest}{default}(train, response, ntree = 500, mtry, replace = TRUE, classwt = NULL, ...)
 \method{mlRforest}{formula}(formula, data, ntree = 500, mtry, replace = TRUE, classwt = NULL, ...,
     subset, na.action)
 \method{predict}{mlRforest}(object, newdata, type = c("class", "membership", "both",
     "vote"), method = c("direct", "oob", "cv"), ...)
 
-mlNnet(...)
+mlNnet(train, ...)
 \method{mlNnet}{default}(train, response, size = NULL, rang = NULL, decay = 0, maxit = 1000, ...)
 \method{mlNnet}{formula}(formula, data, size = NULL, rang = NULL, decay = 0, maxit = 1000, ...,
     subset, na.action)
+\method{predict}{mlNnet}(object, newdata, type = c("class", "membership", "both", "raw"),
+    method = c("direct", "cv"), na.action = na.exclude,...)
 
-mlLvq(...)
+mlKnn(train, ...)
+\method{mlKnn}{default}(train, response, k.nn = 5, ...)
+\method{mlKnn}{formula}(formula, data, k.nn = 5, ..., subset, na.action)
+\method{predict}{mlKnn}(object, newdata, type = c("class", "prob", "both"),
+    method = c("direct", "cv"), na.action = na.exclude,...)
+
+mlLvq(train, ...)
 \method{mlLvq}{default}(train, response, k.nn = 5, size, prior, algorithm = "olvq1", ...)
 \method{mlLvq}{formula}(formula, data, k.nn = 5, size, prior, algorithm = "olvq1", ...,
     subset, na.action)
 \method{summary}{lvq}(object, ...)
 \method{print}{summary.lvq}(x, ...)
-\method{predict}{mlLvq}(object, newdata, type = "class", method = c("direct", "cv"), 
+\method{predict}{mlLvq}(object, newdata, type = "class", method = c("direct", "cv"),
     na.action = na.exclude,...)
 
-mlSvm(...)
+mlSvm(train, ...)
 \method{mlSvm}{default}(train, response, scale = TRUE, type = NULL, kernel = "radial",
     classwt = NULL, ...)
 \method{mlSvm}{formula}(formula, data, scale = TRUE, type = NULL, kernel = "radial",
     classwt = NULL, ..., subset, na.action)
 \method{predict}{mlSvm}(object, newdata, type = c("class", "membership", "both"),
-    method = c("direct", "cv"), na.action = na.exclude,...)
+    method = c("direct", "cv"), na.action = na.exclude, ...)
 
-mlNaiveBayes(...)
+mlNaiveBayes(train, ...)
 \method{mlNaiveBayes}{default}(train, response, laplace = 0, ...)
 \method{mlNaiveBayes}{formula}(formula, data, laplace = 0, ..., subset, na.action)
+\method{predict}{mlNaiveBayes}(object, newdata, type = c("class", "membership", "both"),
+    method = c("direct", "cv"), na.action = na.exclude, threshold = 0.001, eps = 0, ...)
 
 response(object, ...)
 \method{response}{default}(object, ...)
@@ -147,7 +163,7 @@ train(object, ...)
     missing values on any required variable are dropped (this argument must be
     named, if provided). The default, and most suitable option for
     \code{predict()} methods is \code{na.exclude} and rows with NAs in newdata
-    are then, excluded from prediction, but reinjected in final results. }  
+    are then, excluded from prediction, but reinjected in final results. }
   \item{cv.k}{ k for k-fold cross validation, cf \code{errorest()}. }
   \item{cv.strat}{ is the subsampling stratified or not in cross validation,
     cf \code{errorest()}. }
@@ -187,7 +203,7 @@ train(object, ...)
     computed. }
   \item{decay}{ parameter for weight decay. Default 0. }
   \item{maxit}{ maximum number of iterations. Default 1000. }
-  \item{k.nn}{ k used for k-NN test of correct classification. Default is 5. }
+  \item{k.nn}{ k used for k-NN number of neighbour considered. Default is 5. }
   \item{algorithm}{ an algorithm among 'olvq1' (default, the optimized lvq1),
     'lvq1', 'lvq2', or 'lvq3'. }
   \item{scale}{ are all the variables scaled? If a vector is provided, it is
@@ -196,12 +212,17 @@ train(object, ...)
     "linear", "polynomial" or "sigmoid". }
   \item{laplace}{ positive double controlling Laplace smoothing for the naive
     Bayes classifier. The default (0) disables Laplace smoothing. }
+  \item{threshold}{ Value replacing cells with probabilities within 'eps' range
+    for Naive Bayes predictions. }
+  \item{eps}{ double for specifying an epsilon-range to apply laplace smoothing
+    (to replace zero or close-zero probabilities by 'theshold') for Naive Bayes
+    predictions. }
 }
 
 \value{
   A machine learning object where the \code{predict()} method can be applied
   to classify new items.
-  
+
   For \code{response()} and \code{train()}, the respective resmonse vector and
   training matrix (the matrix with all predicting terms).
 }
@@ -341,8 +362,15 @@ confusion(res) # Self-consistency
 set.seed(34)
 summary(ozone.nnet <- mlNnet(Ozone ~ ., data = airquality, na.action = na.omit,
     skip = TRUE, decay = 1e-3, size = 20, linout = TRUE))
-plot(na.omit(airquality)$Ozone, predict(ozone.nnet))
+plot(na.omit(airquality)$Ozone, predict(ozone.nnet, type = "raw"))
 abline(a = 0, b = 1)
+
+
+## Supervised classification using k-nearest neighbours
+summary(res <- mlKnn(Species ~ ., data = irisTrain))
+predict(res) # This object only returns class
+confusion(res) # Self-consistency
+confusion(predict(res, newdata = irisTest), irisTest$Species) # Test set perfs
 
 
 ## Supervised classification using learning vector quantization

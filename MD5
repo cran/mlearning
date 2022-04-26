@@ -1,7 +1,8 @@
-143e0073ee98383eecb24f6cc9b7b93a *DESCRIPTION
-9a64daaf30ca5c8364f2201d723f95d7 *NAMESPACE
-5e8ff31206b02a74e71b13a31b8ec64a *R/confusion.R
-40418bb9c583956432a8b66711c2f0ea *R/mlearning.R
-1fd8d3fbc0116f0586b8ee55a5356ae3 *man/confusion.Rd
-602f7ce409f6f3a663fa64d45bb4e85c *man/mlearning.Rd
-4e1630d681908a60105adf18671614ab *man/mlearning.package.Rd
+dce1666b881387a11914350dce40d06d *DESCRIPTION
+5c16d83a904d1a2ce1931645c09c4bec *NAMESPACE
+2e2cb1751b7d3032b112c1bccf5bbf82 *NEWS.md
+61131205f40496ef533ace84640d443e *R/confusion.R
+e47a8f6a3a603b9fbc43a93fb1cc5245 *R/mlearning.R
+d62d799b33704eed2df26b38aeaec849 *man/confusion.Rd
+cc71e5d2b03c89120dec58394d93f70f *man/mlearning.Rd
+ef22a56a356f250cd7bd1ff562b63929 *man/mlearning.package.Rd
