@@ -1,16 +1,125 @@
-response <- function(object, ...)
-  UseMethod("response")
-
-response.default <- function(object, ...)
-  attr(object, "response")
-
-train <- function(object, ...)
-  UseMethod("train")
-
-train.default <- function(object, ...)
-  attr(object, "train")
-
 # TODO: test performances of optimized code for Class ~ .
+
+#' Machine learning model for (un)supervised classification or regression
+#'
+#' @description
+#' An **mlearning** object provides an unified (formula-based) interface to
+#' several machine learning algorithms. They share the same interface and very
+#' similar arguments. They conform to the formula-based approach, of say,
+#' [stats::lm()] in base R, but with a coherent handling of missing data and
+#' missing class levels. An optimized version exists for the simplified `y ~ .`
+#' formula. Finally, cross-validation is also built-in.
+#'
+#' @param formula a formula with left term being the factor variable to predict
+#' (for supervised classification), a vector of numbers (for regression) or
+#' nothing (for unsupervised classification) and the right term with the list
+#' of independent, predictive variables, separated with a plus sign. If the
+#' data frame provided contains only the dependent and independent variables,
+#' one can use the `class ~ .` short version (that one is strongly encouraged).
+#' Variables with minus sign are eliminated. Calculations on variables are
+#' possible according to usual formula convention (possibly protected by using
+#' `I()`). Supervised classification, regression or unsupervised classification
+#' are not available for all algorithms. Check respective help pages.
+#' @param data a data.frame to use as a training set.
+#' @param method the method to use. It can be `"mlLda"`, `"mlQda"`,
+#'   `"mlNaiveBayes"`, `"mlKnn"`, `"mlLvq"`, `"mlNnet"`, `"mlRpart"`,
+#'   `"mlRforest'`, or `"mlSvm"`. Respective functions exists as a shortcut,
+#'   e.g., `mlLda()` is equivalent to `mlearning(method = "mlLda") for the
+#'   formula interface. Users are supposed to call the shortcut functions. The
+#'   `mlearning()` function serves mainly as core code for the various versions
+#'   for developers.
+#' @param model.args arguments for formula modeling with substituted data and
+#'   subset... Not to be used by the end-user.
+#' @param call the function call. Not to be used by the end-user.
+#' @param ... further arguments (depends on the method).
+#' @param subset index vector with the cases to define the training set in use
+#'   (this argument must be named, if provided).
+#' @param na.action function to specify the action to be taken if `NA`s are
+#'   found. For [ml_qda()] `na.fail` is used by default. The calculation is
+#'   stopped if there is any `NA` in the data. Another option is `na.omit`,
+#'   where cases with missing values on any required variable are dropped (this
+#'   argument must be named, if provided). For the `predict()` method, the
+#'   default, and most suitable option, is `na.exclude`. In that case, rows with
+#'   `NA`s in `newdata=` are excluded from prediction, but reinjected in the
+#'   final results so that the number of items is still the same (and in the
+#'   same order as `newdata=`).
+#' @param x,object an **mlearning** object
+#' @param newdata a new dataset with same conformation as the training set (same
+#'   variables, except may by the class for classification or dependent variable
+#'   for regression). Usually a test set, or a new dataset to be predicted.
+#' @param y a second **mlearning** object or nothing (not used in several plots)
+#' @param type the type of prediction to return. `"class"` by default, the
+#'   predicted classes. Other options are `"membership"` the membership (a
+#'   number between 0 and 1) to the different classes, or `"both"` to return
+#'   classes and memberships. Other types may be provided for some algorithms
+#'   (read respective help pages).
+#' @param method `"direct"` (default) or `"cv"`. `"direct"` predicts new cases
+#'   in `newdata=` if this argument is provided, or the cases in the training
+#'   set if not. Take care that not providing `newdata=` means that you just
+#'   calculate the **self-consistency** of the classifier but cannot use the
+#'   metrics derived from these results for the assessment of its performances.
+#'   Either use a different dataset in `newdata=` or use the alternate
+#'   cross-validation ("cv") technique. If you specify `method = "cv"` then
+#'   [cvpredict()] is used and you cannot provide `newdata=` in that case. Other
+#'   methods may be provided by the various algorithms (check their help pages)
+#' @param cv.k k for k-fold cross-validation, cf [ipred::errorest()].
+#'   By default, 10.
+#' @param cv.strat is the subsampling stratified or not in cross-validation,
+#'   cf [ipred::errorest()]. `TRUE` by default.
+#'
+#' @return an **mlearning** object for [mlearning()]. Methods return their own
+#'   results that can be a **mlearning**, **data.frame**, **vector**, etc.
+#' @seealso [ml_lda()], [ml_qda()], [ml_naive_bayes()], [ml_nnet()],
+#'   [ml_rpart()], [ml_rforest()], [ml_svm()], [confusion()] and [prior()]. Also
+#'   [ipred::errorest()] that internally computes the cross-validation
+#'   in `cvpredict()`.
+#' @export
+#'
+#' @examples
+#' # mlearning() should not be calle directly. Use the mlXXX() functions instead
+#' # for instance, for Random Forest, use ml_rforest()/mlRforest()
+#' # A typical classification involves several steps:
+#' #
+#' # 1) Prepare data: split into training set (2/3) and test set (1/3)
+#' #    Data cleaning (elimination of unwanted variables), transformation of
+#' #    others (scaling, log, ratios, numeric to factor, ...) may be necessary
+#' #    here. Apply the same treatments on the training and test sets
+#' data("iris", package = "datasets")
+#' train <- c(1:34, 51:83, 101:133) # Also random or stratified sampling
+#' iris_train <- iris[train, ]
+#' iris_test <- iris[-train, ]
+#'
+#' # 2) Train the classifier, use of the simplified formula class ~ . encouraged
+#' #    so, you may have to prepare the train/test sets to keep only relevant
+#' #    variables and to possibly transform them before use
+#' iris_rf <- ml_rforest(data = iris_train, Species ~ .)
+#' iris_rf
+#' summary(iris_rf)
+#' train(iris_rf)
+#' response(iris_rf)
+#'
+#' # 3) Find optimal values for the parameters of the model
+#' #    This is usally done iteratively. Just an example with ntree where a plot
+#' #    exists to help finding optimal value
+#' plot(iris_rf)
+#' # For such a relatively simple case, 50 trees are enough, retrain with it
+#' iris_rf <- ml_rforest(data = iris_train, Species ~ ., ntree = 50)
+#' summary(iris_rf)
+#'
+#' # 4) Study the classifier performances. Several metrics and tools exists
+#' #    like ROC curves, AUC, etc. Tools provided here are the confusion matrix
+#' #    and the metrics that are calculated on it.
+#' predict(iris_rf) # Default type is class
+#' predict(iris_rf, type = "membership")
+#' predict(iris_rf, type = "both")
+#' # Confusion matrice and metrics using 10-fols cross-validation
+#' iris_rf_conf <- confusion(iris_rf, method = "cv")
+#' iris_rf_conf
+#' summary(iris_rf_conf)
+#' # Note you may want to manipulate priors too, see ?prior
+#'
+#' # 5) Go back to step #1 and refine the process until you are happy with the
+#' #    results. Then, you can use the classifier to predict unknown items.
 mlearning <- function(formula, data, method, model.args, call = match.call(),
 ..., subset, na.action = na.fail) {
   # Our own construction of response vector and terms matrix
@@ -120,6 +229,9 @@ mlearning <- function(formula, data, method, model.args, call = match.call(),
   match.fun(method)(train = train, response = response, .args. = args, ...)
 }
 
+#' @rdname mlearning
+#' @export
+#' @method print mlearning
 print.mlearning <- function(x, ...) {
   cat("A mlearning object of class ", class(x)[1], " (",
     attr(x, "algorithm"), "):\n", sep = "")
@@ -154,6 +266,9 @@ print.mlearning <- function(x, ...) {
   invisible(x)
 }
 
+#' @rdname mlearning
+#' @export
+#' @method summary mlearning
 summary.mlearning <- function(object, ...) {
   train <- attr(object, "train")
   response <- attr(object, "response")
@@ -175,6 +290,9 @@ summary.mlearning <- function(object, ...) {
   res
 }
 
+#' @rdname mlearning
+#' @export
+#' @method print summary.mlearning
 print.summary.mlearning <- function(x, ...) {
   cat("A mlearning object of class ", attr(x, "mlearning.class"), " (",
     attr(x, "algorithm"), "):\n", sep = "")
@@ -189,6 +307,9 @@ print.summary.mlearning <- function(x, ...) {
   invisible(x)
 }
 
+#' @rdname mlearning
+#' @export
+#' @method plot mlearning
 plot.mlearning <- function(x, y, ...) {
   train <- attr(x, "train")
   response <- attr(x, "response")
@@ -244,6 +365,9 @@ plot.mlearning <- function(x, y, ...) {
   res
 }
 
+#' @rdname mlearning
+#' @export
+#' @method predict mlearning
 predict.mlearning <- function(object, newdata,
 type = c("class", "membership", "both"), method = c("direct", "cv"),
 na.action = na.exclude, ...) {
@@ -328,9 +452,14 @@ na.action = na.exclude, ...) {
   res
 }
 
+#' @rdname mlearning
+#' @export
 cvpredict <- function(object, ...)
   UseMethod("cvpredict")
 
+#' @rdname mlearning
+#' @export
+#' @method cvpredict mlearning
 cvpredict.mlearning <- function(object, type = c("class", "membership", "both"),
 cv.k = 10, cv.strat = TRUE, ...) {
   type <- switch(attr(object, "type"),
@@ -374,7 +503,7 @@ cv.k = 10, cv.strat = TRUE, ...) {
   args$method <- attr(object, "method")
   args$predict <- substitute(Predict)
   args$estimator <- "cv"
-  args$est.para <- control.errorest(predictions = predictions,
+  args$est.para <- ipred::control.errorest(predictions = predictions,
     getmodels = getmodels, k = cv.k, strat = cv.strat)
   est <- do.call(errorest, args)
 
@@ -438,978 +567,4 @@ cv.k = 10, cv.strat = TRUE, ...) {
   attr(res, "method") <- est
 
   res
-}
-
-# Note: ldahist() in MASS (when only one LD) seems to be broken!
-mlLda <- function(train, ...)
-  UseMethod("mlLda")
-
-mlLda.formula <- function(formula, data, ..., subset, na.action)
-  mlearning(formula, data = data, method = "mlLda", model.args =
-    list(formula  = formula, data = substitute(data),
-    subset = substitute(subset)), call = match.call(), ...,
-    subset = subset, na.action = substitute(na.action))
-
-mlLda.default <- function(train, response, ...) {
-  if (!is.factor(response))
-    stop("only factor response (classification) accepted for mlLda")
-
-  dots <- list(...)
-  .args. <- dots$.args.
-  dots$.args. <- NULL
-  if (!length(.args.))
-    .args. <- list(levels = levels(response),
-      n = c(intial = NROW(train), final = NROW(train)),
-      type = "classification", na.action = "na.pass",
-      mlearning.call = match.call(), method = "mlLda")
-
-  # Check if there are factor predictors
-  if (any(sapply(train, is.factor)))
-    warning("force conversion from factor to numeric; may be not optimal or suitable")
-
-  # Return a mlearning object
-  structure(MASS::lda(x = sapply(train, as.numeric),
-    grouping = response, ...), formula = .args.$formula, train = train,
-    response = response, levels = .args.$levels, n = .args.$n, args = dots,
-    optim = .args.$optim, numeric.only = TRUE, type = .args.$type,
-    pred.type = c(class = "class", membership = "posterior", projection = "x"),
-    summary = NULL, na.action = .args.$na.action,
-    mlearning.call = .args.$mlearning.call, method = .args.$method,
-    algorithm = "linear discriminant analysis",
-    class = c("mlLda", "mlearning", "lda"))
-}
-
-predict.mlLda <- function(object, newdata,
-type = c("class", "membership", "both", "projection"), prior = object$prior,
-dimension, method = c("plug-in", "predictive", "debiased", "cv"), ...) {
-  if (!inherits(object, "mlLda"))
-    stop("'object' must be a 'mlLda' object")
-
-  # If method == "cv", delegate to cvpredict()
-  method <- as.character(method)[1]
-  if (method == "cv") {
-    if (!missing(newdata))
-      stop("cannot handle new data with method = 'cv'")
-    if (missing(dimension)) {
-      return(cvpredict(object = object, type = type, prior = prior, ...))
-    } else {
-      return(cvpredict(object = object, type = type, prior = prior,
-        dimension = dimension, ...))
-    }
-  }
-
-  # Recalculate newdata according to formula...
-  if (missing(newdata)) {# Use train
-    newdata <- attr(object, "train")
-  } else if (attr(object, "optim")) {# Use optimized approach
-    ## Just keep vars similar as in train
-    vars <- names(attr(object, "train"))
-    if (!all(vars %in% names(newdata)))
-      stop("One or more missing variables in newdata")
-    newdata <- newdata[, vars]
-  } else {# Use model.frame
-    # but eliminate dependent variable, not required
-    # (second item in the formula)
-    newdata <- model.frame(formula = attr(object, "formula")[-2],
-      data = newdata, na.action = na.pass)[, names(attr(object, "train"))]
-  }
-  # Only numerical predictors
-  newdata <- sapply(as.data.frame(newdata), as.numeric)
-
-  # dimension
-  if (missing(dimension)) {
-    dimension <- length(object$svd)
-  } else {
-    dimension <- min(dimension, length(object$svd))
-  }
-
-  # Delegate to the MASS predict.lda method
-  class(object) <- class(object)[-(1:2)]
-  # I need to suppress warnings, because NAs produce ennoying warnings!
-  res <- suppressWarnings(predict(object, newdata = newdata, prior = prior,
-    dimen = dimension, method = method, ...))
-
-  # Rework results according to what we want
-  switch(as.character(type)[1],
-    class = factor(as.character(res$class), levels = levels(object)),
-    membership = .membership(res$posterior, levels = levels(object)),
-    both = list(class = factor(as.character(res$class),
-      levels = levels(object)), membership = .membership(res$posterior,
-      levels = levels(object))),
-    projection = res$x,
-    stop("unrecognized 'type' (must be 'class', 'membership', 'both' or 'projection')"))
-}
-
-mlQda <- function(train, ...)
-  UseMethod("mlQda")
-
-mlQda.formula <- function(formula, data, ..., subset, na.action)
-  mlearning(formula, data = data, method = "mlQda", model.args =
-    list(formula  = formula, data = substitute(data),
-    subset = substitute(subset)), call = match.call(), ...,
-    subset = subset, na.action = substitute(na.action))
-
-mlQda.default <- function(train, response, ...) {
-  if (!is.factor(response))
-    stop("only factor response (classification) accepted for mlQda")
-
-  dots <- list(...)
-  .args. <- dots$.args.
-  dots$.args. <- NULL
-  if (!length(.args.))
-    .args. <- list(levels = levels(response),
-    n = c(intial = NROW(train), final = NROW(train)),
-    type = "classification", na.action = "na.pass",
-    mlearning.call = match.call(), method = "mlQda")
-
-  # Check if there are factor predictors
-  if (any(sapply(train, is.factor)))
-    warning("force conversion from factor to numeric; may be not optimal or suitable")
-
-  # Return a mlearning object
-  structure(MASS::qda(x = sapply(train, as.numeric),
-    grouping = response, ...), formula = .args.$formula, train = train,
-    response = response, levels = .args.$levels, n = .args.$n, args = dots,
-    optim = .args.$optim, numeric.only = TRUE, type = .args.$type,
-    pred.type = c(class = "class", membership = "posterior"),
-    summary = NULL, na.action = .args.$na.action,
-    mlearning.call = .args.$mlearning.call, method = .args.$method,
-    algorithm = "quadratic discriminant analysis",
-    class = c("mlQda", "mlearning", "qda"))
-}
-
-predict.mlQda <- function(object, newdata, type = c("class", "membership", "both"),
-prior = object$prior, method = c("plug-in", "predictive", "debiased", "looCV",
-"cv"), ...) {
-  if (!inherits(object, "mlQda"))
-    stop("'object' must be a 'mlQda' object")
-
-  # If method == "cv", delegate to cvpredict()
-  method <- as.character(method)[1]
-  if (method == "cv") {
-    if (!missing(newdata))
-      stop("cannot handle new data with method = 'cv'")
-    return(cvpredict(object = object, type = type, prior = prior, ...))
-  }
-
-  # Recalculate newdata according to formula...
-  if (missing(newdata)) {# Use train
-    newdata <- attr(object, "train")
-  } else if (attr(object, "optim")) {# Use optimized approach
-    # Just keep vars similar as in train
-    vars <- names(attr(object, "train"))
-    if (!all(vars %in% names(newdata)))
-      stop("One or more missing variables in newdata")
-    newdata <- newdata[, vars]
-  } else {# Use model.frame
-    # but eliminate dependent variable, not required
-    # (second item in the formula)
-    newdata <- model.frame(formula = attr(object, "formula")[-2],
-      data = newdata, na.action = na.pass)[, names(attr(object, "train"))]
-  }
-  # Only numerical predictors
-  newdata <- sapply(as.data.frame(newdata), as.numeric)
-
-  # Delegate to the MASS predict.qda method
-  class(object) <- class(object)[-(1:2)]
-  # I need to suppress warnings, because NAs produce ennoying warnings!
-  res <- suppressWarnings(predict(object, newdata = newdata, prior = prior,
-    method = method, ...))
-
-  # Rework results according to what we want
-  switch(as.character(type)[1],
-    class = factor(as.character(res$class), levels = levels(object)),
-    membership = .membership(res$posterior, levels = levels(object)),
-    both = list(class = factor(as.character(res$class),
-      levels = levels(object)), membership = .membership(res$posterior,
-      levels = levels(object))),
-    stop("unrecognized 'type' (must be 'class', 'membership' or 'both')"))
-}
-
-mlRforest <- function(train, ...)
-  UseMethod("mlRforest")
-
-mlRforest.formula <- function(formula, data, ntree = 500, mtry,
-replace = TRUE, classwt = NULL, ..., subset, na.action) {
-  if (missing(mtry)) {
-    mlearning(formula, data = data, method = "mlRforest", model.args =
-      list(formula  = formula, data = substitute(data),
-      subset = substitute(subset)), call = match.call(), ntree = ntree,
-      replace = replace, classwt = classwt, ...,
-      subset = subset, na.action = substitute(na.action))
-  } else {
-    mlearning(formula, data = data, method = "mlRforest", model.args =
-      list(formula  = formula, data = substitute(data),
-      subset = substitute(subset)), call = match.call(), ntree = ntree,
-      mtry = mtry, replace = replace, classwt = classwt, ...,
-      subset = subset, na.action = substitute(na.action))
-  }
-}
-
-mlRforest.default <- function(train, response, ntree = 500, mtry,
-replace = TRUE, classwt = NULL, ...) {
-  dots <- list(...)
-  .args. <- dots$.args.
-  dots$.args. <- NULL
-  if (!length(.args.)) {
-    if (!length(response)) {
-      type <- "unsupervised"
-    } else if (is.factor(response)) {
-      type <- "classification"
-    } else type <- "regression"
-    .args. <- list(levels = levels(response),
-    n = c(intial = NROW(train), final = NROW(train)),
-    type = type, na.action = "na.pass",
-    mlearning.call = match.call(), method = "mlRforest")
-  }
-  dots$ntree <- ntree
-  dots$replace <- replace
-  dots$classwt <- classwt
-
-  # Return a mlearning object
-  if (missing(mtry) || !length(mtry)) {
-    res <- randomForest::randomForest(x = train,
-    y = response, ntree = ntree, replace = replace,
-    classwt = classwt, ...)
-  } else {
-    dots$mtry <- mtry
-    res <- randomForest::randomForest(x = train,
-    y = response, ntree = ntree, mtry = mtry, replace = replace,
-    classwt = classwt, ...)
-  }
-
-  structure(res, formula = .args.$formula, train = train,
-    response = response, levels = .args.$levels, n = .args.$n, args = dots,
-    optim = .args.$optim, numeric.only = FALSE, type = .args.$type,
-    pred.type = c(class = "response", membership = "prob", vote = "vote"),
-    summary = NULL, na.action = .args.$na.action,
-    mlearning.call = .args.$mlearning.call, method = .args.$method,
-    algorithm = "random forest",
-    class = c("mlRforest", "mlearning", "randomForest"))
-}
-
-predict.mlRforest <- function(object, newdata,
-type = c("class", "membership", "both", "vote"),
-method = c("direct", "oob", "cv"), ...) {
-  type <- as.character(type)[1]
-
-  # If method == "cv", delegate to cvpredict()
-  method <- as.character(method)[1]
-  if (method == "cv") {
-    if (!missing(newdata))
-      stop("cannot handle new data with method = 'cv'")
-    return(cvpredict(object = object, type = type, ...))
-  } else if (method == "oob") { # Get out-of-bag prediction!
-    if (!missing(newdata))
-      stop("you cannot provide newdata with method = 'oob'")
-
-    toProps <- function(x, ntree) {
-      if (sum(x[1, ] > 1)) {
-        res <- t(apply(x, 1, "/", ntree))
-      } else {
-        res <- x
-      }
-      class(res) <- "matrix"
-      res
-    }
-
-    toVotes <- function(x, ntree) {
-      if (sum(x[1, ] < ntree - 1)) {
-        res <- round(t(apply(x, 1, "*", ntree)))
-      } else {
-        res <- x
-      }
-      class(res) <- "matrix"
-      res
-    }
-
-    res <- switch(type,
-      class = factor(as.character(object$predicted),
-        levels = levels(object)),
-      membership = .membership(toProps(object$votes, object$ntree),
-        levels = levels(object)),
-      both = list(class = factor(as.character(object$predicted),
-        levels = levels(object)),
-        membership = .membership(toProps(object$votes, object$ntree),
-        levels = levels(object))),
-      vote = .membership(toVotes(object$votes, object$ntree),
-            levels = levels(object)),
-      stop("unknown type, must be 'class', 'membership', 'both' or 'vote'"))
-
-    attr(res, "method") <- list(name = "out-of-bag")
-    res
-
-  } else {
-    predict.mlearning(object = object, newdata = newdata,
-      type = type, norm.votes = FALSE, ...)
-  }
-}
-
-mlNnet <- function(train, ...)
-  UseMethod("mlNnet")
-
-mlNnet.formula <- function(formula, data, size = NULL, rang = NULL, decay = 0,
-maxit = 1000, ..., subset, na.action)
-  mlearning(formula, data = data, method = "mlNnet", model.args =
-    list(formula  = formula, data = substitute(data),
-    subset = substitute(subset)), call = match.call(), size = size,
-    rang = rang, decay = decay, maxit = maxit, ...,
-    subset = subset, na.action = substitute(na.action))
-
-mlNnet.default <- function(train, response, size = NULL, rang = NULL, decay = 0,
-maxit = 1000, ...) {
-  if (!length(response))
-    stop("unsupervised classification not usable for mlNnet")
-
-  nnetArgs <- dots <- list(...)
-  .args. <- nnetArgs$.args.
-  dots$.args. <- NULL
-  dots$size <- size
-  dots$rang <- rang
-  dots$decay <- decay
-  dots$maxit <- maxit
-  nnetArgs$.args. <- NULL
-  if (!length(.args.))
-    .args. <- list(levels = levels(response),
-      n = c(intial = NROW(train), final = NROW(train)),
-      type = if (is.factor(response)) "classification" else "regression",
-      na.action = "na.pass", mlearning.call = match.call(), method = "mlNnet")
-
-  # Construct arguments list for nnet() call
-  nnetArgs$x <- sapply(train, as.numeric)
-
-  # Weights
-  if (!length(nnetArgs$weights))
-    nnetArgs$weights <- .args.$weights
-
-  # size
-  if (!length(size))
-    size <- length(levels(response)) - 1 # Is this a reasonable default?
-  nnetArgs$size <- size
-
-  # rang
-  if (!length(rang)) {
-    # default is 0.7 in original nnet code,
-    # but the doc proposes something else
-    rang <- round(1 / max(abs(nnetArgs$x)), 2)
-    if (rang < 0.01) rang <- 0.01
-    if (rang > 0.7) rang <- 0.7
-  }
-  nnetArgs$rang <- rang
-
-  # decay and maxit
-  nnetArgs$decay <- decay
-  nnetArgs$maxit <- maxit
-
-  # TODO: should I need to implement this???
-  #x <- model.matrix(Terms, m, contrasts)
-  #cons <- attr(x, "contrast")
-  #xint <- match("(Intercept)", colnames(x), nomatch = 0L)
-  #if (xint > 0L)
-  #    x <- x[, -xint, drop = FALSE]
-
-  # Classification or regression?
-  if (is.factor(response)) {
-    if (length(levels(response)) == 2L) {
-      nnetArgs$y <- as.vector(unclass(response)) - 1
-      nnetArgs$entropy <- TRUE
-      res <- do.call(nnet.default, nnetArgs)
-      res$lev <- .args.$levels
-    } else {
-      nnetArgs$y <- class.ind(response)
-      nnetArgs$softmax <- TRUE
-      res <- do.call(nnet.default, nnetArgs)
-      res$lev <- .args.$levels
-    }
-  } else {# Regression
-    nnetArgs$y <- response
-    res <- do.call(nnet.default, nnetArgs)
-  }
-
-  # Return a mlearning object
-  structure(res, formula = .args.$formula, train = train,
-    response = response, levels = .args.$levels, n = .args.$n, args = dots,
-    optim = .args.$optim, numeric.only = TRUE, type = .args.$type,
-    pred.type = c(class = "class", membership = "raw"),
-    summary = "summary", na.action = .args.$na.action,
-    mlearning.call = .args.$mlearning.call, method = .args.$method,
-    algorithm = "single-hidden-layer neural network",
-    class = c("mlNnet", "mlearning", "nnet"))
-}
-
-predict.mlNnet <- function(object, newdata,
-  type = c("class", "membership", "both", "raw"), method = c("direct", "cv"),
-  na.action = na.exclude, ...) {
-  if (!inherits(object, "mlNnet"))
-    stop("'object' must be a 'mlNnet' object")
-
-  # If method == "cv", delegate to cvpredict()
-  method <- as.character(method)[1]
-  if (method == "cv") {
-    if (!missing(newdata))
-      stop("cannot handle new data with method = 'cv'")
-    return(cvpredict(object = object, type = type, ...))
-  }
-
-  # Recalculate newdata according to formula...
-  if (missing(newdata)) {# Use train
-    newdata <- attr(object, "train")
-  } else if (attr(object, "optim")) {# Use optimized approach
-    # Just keep vars similar as in train
-    vars <- names(attr(object, "train"))
-    if (!all(vars %in% names(newdata)))
-      stop("One or more missing variables in newdata")
-    newdata <- newdata[, vars]
-  } else {# Use model.frame
-    # but eliminate dependent variable, not required
-    # (second item in the formula)
-    newdata <- model.frame(formula = attr(object, "formula")[-2],
-      data = newdata, na.action = na.pass)[, names(attr(object, "train"))]
-  }
-  # Only numerical predictors
-  newdata <- sapply(as.data.frame(newdata), as.numeric)
-
-  # Determine how many data and perform na.action
-  n <- NROW(newdata)
-  newdata <- match.fun(na.action)(newdata)
-  ndrop <- attr(newdata, "na.action")
-  attr(newdata, "na.action") <- NULL
-
-  # Delegate to the nnet predict.nnet() method
-  type <- as.character(type)[1]
-  class(object) <- class(object)[-(1:2)]
-  # This is for classification
-  if (type == "membership" || type == "both")
-    proba <- predict(object, newdata = newdata, type = "raw", ...)
-  if (type == "class" || type == "both")
-    res <- predict(object, newdata = newdata, type = "class", ...)
-  if (type == "raw")
-    res <- predict(object, newdata = newdata, type = "raw", ...)
-
-  # Rework results according to what we want
-  switch(type,
-    class = .expandFactor(factor(as.character(res),
-      levels = levels(object)), n, ndrop),
-    membership = .expandMatrix(.membership(proba,
-      levels = levels(object)), n, ndrop),
-    both = list(class = .expandFactor(factor(as.character(res),
-      levels = levels(object)), n, ndrop),
-      membership = .expandMatrix(.membership(proba,
-        levels = levels(object)), n, ndrop)),
-    raw = res,
-    stop("unrecognized 'type' (must be 'class', 'membership', 'both' or 'raw')"))
-}
-
-mlLvq <- function(train, ...)
-  UseMethod("mlLvq")
-
-mlLvq.formula <- function(formula, data, k.nn = 5, size, prior,
-algorithm = "olvq1", ..., subset, na.action) {
-  if (missing(size)) {
-    if (missing(prior)) {
-      mlearning(formula, data = data, method = "mlLvq", model.args =
-        list(formula  = formula, data = substitute(data),
-        subset = substitute(subset)), call = match.call(), k.nn = k.nn,
-        algorithm = algorithm, ...,
-        subset = subset, na.action = substitute(na.action))
-    } else {
-      mlearning(formula, data = data, method = "mlLvq", model.args =
-        list(formula  = formula, data = substitute(data),
-        subset = substitute(subset)), call = match.call(), k.nn = k.nn,
-        prior = prior, algorithm = algorithm, ...,
-        subset = subset, na.action = substitute(na.action))
-    }
-  } else {
-    if (missing(prior)) {
-      mlearning(formula, data = data, method = "mlLvq", model.args =
-        list(formula  = formula, data = substitute(data),
-        subset = substitute(subset)), call = match.call(), k.nn = k.nn,
-        size = size, algorithm = algorithm, ...,
-        subset = subset, na.action = substitute(na.action))
-    } else {
-      mlearning(formula, data = data, method = "mlLvq", model.args =
-        list(formula  = formula, data = substitute(data),
-        subset = substitute(subset)), call = match.call(), k.nn = k.nn,
-        size = size, prior = prior, algorithm = algorithm, ...,
-        subset = subset, na.action = substitute(na.action))
-    }
-  }
-}
-
-mlLvq.default <- function(train, response, k.nn = 5, size, prior,
-algorithm = "olvq1", ...) {
-  if (!is.factor(response))
-    stop("only factor response (classification) accepted for mlLvq")
-
-  dots <- list(...)
-  .args. <- dots$.args.
-  dots$.args. <- NULL
-  dots$k.nn <- k.nn
-  dots$algorithm <- algorithm
-  if (!length(.args.))
-    .args. <- list(levels = levels(response),
-      n = c(intial = NROW(train), final = NROW(train)),
-      type = "classification", na.action = "na.pass",
-      mlearning.call = match.call(), method = "mlLvq")
-
-  # Matrix of numeric values
-  if (any(sapply(train, is.factor))) {
-    warning("force conversion from factor to numeric; may be not optimal or suitable")
-    train <- sapply(train, as.numeric)
-  }
-
-  # Default values for size and prior, if not provided
-  n <- nrow(train)
-  if (missing(prior) || !length(prior)) {
-    prior <- tapply(rep(1, length(response)), response, sum) / n
-  } else dots$prior <- prior
-  if (missing(size) || !length(size)) {
-    np <- length(prior)
-    size <- min(round(0.4 * np * (np - 1 + ncol(train) / 2), 0), n)
-  } else dots$size <- size
-
-  # Initialize codebook
-  init <- lvqinit(train, response, k = k.nn, size = size, prior = prior)
-
-  # Calculate final codebook
-  if (algorithm[1] == "olvq1") times <- 40 else times <- 100
-  niter <- dots$niter
-  if (!length(niter)) niter <- times * nrow(init$x) # Default value
-  alpha <- dots$alpha
-  if (!length(alpha)) alpha <- if (algorithm[1] == "olvq1") 0.3 else 0.03
-  win <- dots$win
-  if (!length(win)) win <- 0.3
-  epsilon <- dots$epsilon
-  if (!length(epsilon)) epsilon <- 0.1
-  codebk <- switch(algorithm,
-    olvq1 = olvq1(train, response, init, niter = niter,
-      alpha = alpha),
-    lvq1 = lvq1(train, response, init, niter = niter,
-      alpha = alpha),
-    lvq2 = lvq2(train, response, init, niter = niter,
-      alpha = alpha, win = win),
-    lvq3 = lvq3(train, response, init, niter = niter,
-      alpha = alpha, win = win, epsilon = epsilon),
-    stop("algorithm must be 'lvq1', 'lvq2', 'lvq3' or 'olvq1'"))
-
-  # Return a mlearning object
-  structure(codebk, formula = .args.$formula, train = train,
-    response = response, levels = .args.$levels, n = .args.$n, args = dots,
-    optim = .args.$optim, numeric.only = TRUE, type = .args.$type,
-    pred.type = c(class = "class"), summary = "summary.lvq",
-    na.action = .args.$na.action,
-    mlearning.call = .args.$mlearning.call, method = .args.$method,
-    algorithm = "learning vector quantization",
-    class = c("mlLvq", "mlearning", class(codebk)))
-}
-
-summary.lvq <- function(object, ...)
-  structure(cbind(Class = object$cl, as.data.frame(object$x)),
-    class = c("summary.lvq", "data.frame"))
-
-print.summary.lvq <- function(x, ...) {
-  cat("Codebook:\n")
-  print(as.data.frame(x))
-  invisible(x)
-}
-
-predict.mlLvq <- function(object, newdata, type = "class",
-method = c("direct", "cv"), na.action = na.exclude, ...) {
-  if (!inherits(object, "mlLvq"))
-    stop("'object' must be a 'mlLvq' object")
-  if (type != "class")
-    stop("Only 'class' currently supported for type")
-
-  # If method == "cv", delegate to cvpredict()
-  if (as.character(method)[1] == "cv") {
-    if (!missing(newdata))
-      stop("cannot handle new data with method = 'cv'")
-    return(cvpredict(object = object, type = type, ...))
-  }
-
-  # Recalculate newdata according to formula...
-  if (missing(newdata)) { # Use train
-    newdata <- attr(object, "train")
-  } else if (attr(object, "optim")) {# Use optimized approach
-    ## Just keep vars similar as in train
-    vars <- colnames(attr(object, "train"))
-    if (!all(vars %in% names(newdata)))
-      stop("one or more missing variables in newdata")
-    newdata <- newdata[, vars]
-  } else {# Use model.frame
-    # but eliminate dependent variable, not required
-    # (second item in the formula)
-    newdata <- model.frame(formula = attr(object, "formula")[-2],
-      data = newdata, na.action = na.pass)[, names(attr(object, "train"))]
-  }
-  newdata <- sapply(as.data.frame(newdata), as.numeric)
-
-  # Determine how many data and perform na.action
-  n <- NROW(newdata)
-  newdata <- match.fun(na.action)(newdata)
-  ndrop <- attr(newdata, "na.action")
-
-  .expandFactor(lvqtest(object, newdata), n, ndrop)
-}
-
-# svm from e1071 package
-mlSvm <- function(train, ...)
-  UseMethod("mlSvm")
-
-mlSvm.formula <- function(formula, data, scale = TRUE, type = NULL,
-kernel = "radial", classwt = NULL, ..., subset, na.action)
-  mlearning(formula, data = data, method = "mlSvm", model.args =
-    list(formula  = formula, data = substitute(data),
-    subset = substitute(subset)), call = match.call(),
-    scale = scale, type = type, kernel = kernel, classwt = classwt, ...,
-    subset = subset, na.action = substitute(na.action))
-
-mlSvm.default <- function(train, response, scale = TRUE, type = NULL,
-kernel = "radial", classwt = NULL, ...) {
-  dots <- list(...)
-  .args. <- dots$.args.
-  dots$.args. <- NULL
-  if (!length(.args.)) {
-    if (is.factor(response)) {
-      Type <- "classification"
-    } else {
-      Type <- "regression"
-    }
-    .args. <- list(levels = levels(response),
-      n = c(intial = NROW(train), final = NROW(train)),
-      type = Type, na.action = "na.pass",
-      mlearning.call = match.call(), method = "mlSvm")
-  }
-  dots$scale <- scale
-  dots$type <- type
-  dots$kernel <- kernel
-  dots$class.weigths <- classwt
-  #dots$probability <- TRUE
-
-  # Return a mlearning object
-  structure(e1071::svm(x = sapply(train, as.numeric), y = response,
-    scale = scale, type = type, kernel = kernel, class.weights = classwt,
-    probability = TRUE, ...), formula = .args.$formula, train = train,
-    response = response, levels = .args.$levels, n = .args.$n, args = dots,
-    optim = .args.$optim, numeric.only = TRUE, type = .args.$type,
-    pred.type = c(class = "class", membership = "raw"),
-    summary = "summary", na.action = .args.$na.action,
-    mlearning.call = .args.$mlearning.call, method = .args.$method,
-    algorithm = "support vector machine",
-    class = c("mlSvm", "mlearning", "svm"))
-}
-
-predict.mlSvm <- function(object, newdata,
-type = c("class", "membership", "both"), method = c("direct", "cv"),
-na.action = na.exclude, ...) {
-  if (!inherits(object, "mlSvm"))
-    stop("'object' must be a 'mlSvm' object")
-
-  # If method == "cv", delegate to cvpredict()
-  method <- as.character(method)[1]
-  if (method == "cv") {
-    if (!missing(newdata))
-      stop("cannot handle new data with method = 'cv'")
-    return(cvpredict(object = object, type = type, ...))
-  }
-
-  # Recalculate newdata according to formula...
-  if (missing(newdata)) { # Use train
-    newdata <- attr(object, "train")
-  } else if (attr(object, "optim")) {# Use optimized approach
-    # Just keep vars similar as in train
-    vars <- names(attr(object, "train"))
-    if (!all(vars %in% names(newdata)))
-      stop("One or more missing variables in newdata")
-    newdata <- newdata[, vars]
-  } else {# Use model.frame
-    # but eliminate dependent variable, not required
-    # (second item in the formula)
-    newdata <- model.frame(formula = attr(object, "formula")[-2],
-      data = newdata, na.action = na.pass)[, names(attr(object, "train"))]
-  }
-  # Only numerical predictors
-  newdata <- sapply(as.data.frame(newdata), as.numeric)
-
-  # Determine how many data and perform na.action
-  n <- NROW(newdata)
-  newdata <- match.fun(na.action)(newdata)
-  ndrop <- attr(newdata, "na.action")
-  attr(newdata, "na.action") <- NULL
-
-  # Delegate to the e1071 predict.svm method
-  if (as.character(type)[1] == "class") proba <- FALSE else proba <- TRUE
-  class(object) <- class(object)[-(1:2)]
-  if (attr(object, "type")[1] == "regression")
-    return(predict(object, newdata = newdata, ...))
-
-  # This is for classification
-  res <- predict(object, newdata = newdata,
-    probability = proba, ...)
-  proba <- attr(res, "probabilities")
-
-  # Rework results according to what we want
-  switch(as.character(type)[1],
-    class = .expandFactor(factor(as.character(res),
-      levels = levels(object)), n, ndrop),
-    membership = .expandMatrix(.membership(proba,
-      levels = levels(object)), n, ndrop),
-    both = list(class = .expandFactor(factor(as.character(res),
-      levels = levels(object)), n, ndrop),
-      membership = .expandMatrix(.membership(proba,
-        levels = levels(object)), n, ndrop)),
-    stop("unrecognized 'type' (must be 'class', 'membership' or 'both')"))
-}
-
-# NaiveBayes from e1071 package
-mlNaiveBayes <- function(train, ...)
-  UseMethod("mlNaiveBayes")
-
-mlNaiveBayes.formula <- function(formula, data, laplace = 0, ...,
-subset, na.action)
-  mlearning(formula, data = data, method = "mlNaiveBayes", model.args =
-    list(formula  = formula, data = substitute(data),
-    subset = substitute(subset)), call = match.call(), laplace = laplace,
-    ..., subset = subset, na.action = substitute(na.action))
-
-mlNaiveBayes.default <- function(train, response, laplace = 0, ...) {
-  if (!is.factor(response))
-    stop("only factor response (classification) accepted for mlNaiveBayes")
-
-  dots <- list(...)
-  .args. <- dots$.args.
-  dots$.args. <- NULL
-  dots$laplace <- laplace
-  if (!length(.args.))
-    .args. <- list(levels = levels(response),
-      n = c(intial = NROW(train), final = NROW(train)),
-      type = "classification", na.action = "na.pass",
-      mlearning.call = match.call(), method = "mlNaiveBayes")
-
-  # Return a mlearning object
-  structure(e1071::naiveBayes(x = train, y = response,
-    laplace = laplace, ...), formula = .args.$formula, train = train,
-    response = response, levels = .args.$levels, n = .args.$n, args = dots,
-    optim = .args.$optim, numeric.only = FALSE, type = .args.$type,
-    pred.type = c(class = "class", membership = "raw"),
-    summary = NULL, na.action = .args.$na.action,
-    mlearning.call = .args.$mlearning.call, method = .args.$method,
-    algorithm = "naive Bayes classifier",
-    class = c("mlNaiveBayes", "mlearning", "naiveBayes"))
-}
-
-predict.mlNaiveBayes <- function(object, newdata,
-type = c("class", "membership", "both"), method = c("direct", "cv"),
-na.action = na.exclude, threshold = 0.001, eps = 0, ...) {
-  if (!inherits(object, "mlNaiveBayes"))
-    stop("'object' must be a 'mlNaiveBayes' object")
-
-  # If method == "cv", delegate to cvpredict()
-  method <- as.character(method)[1]
-  if (method == "cv") {
-    if (!missing(newdata))
-      stop("cannot handle new data with method = 'cv'")
-    return(cvpredict(object = object, type = type, threshold = threshold,
-      eps = eps, ...))
-  }
-
-  # Recalculate newdata according to formula...
-  if (missing(newdata)) {# Use train
-    newdata <- attr(object, "train")
-  } else if (attr(object, "optim")[1]) {# Use optimized approach
-    # Just keep vars similar as in train
-    vars <- names(attr(object, "train"))
-    if (!all(vars %in% names(newdata)))
-      stop("One or more missing variables in newdata")
-    newdata <- newdata[, vars]
-  } else {# Use model.frame
-    # but eliminate dependent variable, not required
-    # (second item in the formula)
-    newdata <- model.frame(formula = attr(object, "formula")[-2],
-      data = newdata, na.action = na.pass)[, names(attr(object, "train"))]
-  }
-  # Only numerical predictors
-  newdata <- sapply(as.data.frame(newdata), as.numeric)
-
-  # Determine how many data and perform na.action
-  n <- NROW(newdata)
-  newdata <- match.fun(na.action)(newdata)
-  ndrop <- attr(newdata, "na.action")
-  attr(newdata, "na.action") <- NULL
-
-  # Delegate to the e1071::predict.naiveBayes() method
-  type <- as.character(type)[1]
-  class(object) <- class(object)[-(1:2)]
-  # This is for classification
-  if (type == "membership" || type == "both")
-    proba <- predict(object, newdata = newdata, type = "raw",
-      threshold = threshold, eps = eps, ...)
-  if (type == "class" || type == "both")
-    res <- predict(object, newdata = newdata, type = "class",
-      threshold = threshold, eps = eps, ...)
-
-  # Rework results according to what we want
-  switch(type,
-    class = .expandFactor(factor(as.character(res),
-      levels = levels(object)), n, ndrop),
-    membership = .expandMatrix(.membership(proba,
-      levels = levels(object)), n, ndrop),
-    both = list(class = .expandFactor(factor(as.character(res),
-      levels = levels(object)), n, ndrop),
-      membership = .expandMatrix(.membership(proba,
-        levels = levels(object)), n, ndrop)),
-    stop("unrecognized 'type' (must be 'class', 'membership' or 'both')"))
-}
-
-
-## NaiveBayes from RWeka package
-## TODO: keep this for mlearningWeka package!
-#mlNaiveBayesWeka <- function (train, ...)
-#  UseMethod("mlNaiveBayesWeka")
-#
-#mlNaiveBayesWeka.formula <- function(formula, data, ..., subset, na.action)
-#  mlearning(formula, data = data, method = "mlNaiveBayesWeka", model.args =
-#    list(formula  = formula, data = substitute(data),
-#    subset = substitute(subset)), call = match.call(),
-#    ..., subset = subset, na.action = substitute(na.action))
-#
-#mlNaiveBayesWeka.default <- function (train, response, ...)
-#{
-#  if (!is.factor(response))
-#    stop("only factor response (classification) accepted for mlNaiveBayesWeka")
-#
-#  .args. <- dots <- list(...)$.args.
-#  if (!length(.args.)) .args. <- list(levels = levels(response),
-#    n = c(intial = NROW(train), final = NROW(train)),
-#    type = "classification", na.action = "na.pass",
-#    mlearning.call = match.call(), method = "mlNaiveBayesWeka")
-#
-#  wekaArgs <- list(control = .args.$control)
-#
-#  ## If response is not NULL, add it to train
-#  if (length(response)) {
-#    formula <- .args.$formula
-#    if (!length(formula)) response.label <- "Class" else
-#      response.label <- all.vars(formula)[1]
-#    data <- data.frame(response, train)
-#    names(data) <- c(response.label, colnames(train))
-#    wekaArgs$data <- data
-#    wekaArgs$formula <- as.formula(paste(response.label, "~ ."))
-#  } else { # Unsupervised classification
-#    wekaArgs$data <- train
-#    wekaArgs$formula <- ~ .
-#  }
-#
-#  WekaClassifier <- make_Weka_classifier("weka/classifiers/bayes/NaiveBayes")
-#
-#  ## Return a mlearning object
-#  structure(do.call(WekaClassifier, wekaArgs), formula = .args.$formula,
-#    train = train, response = response, levels = .args.$levels, n = .args.$n,
-#    args = dots, optim = .args.$optim, numeric.only = FALSE,
-#    type = .args.$type, pred.type = c(class = "class", membership = "probability"),
-#    summary = "summary", na.action = .args.$na.action,
-#    mlearning.call = .args.$mlearning.call, method = .args.$method,
-#    algorithm = "Weka naive Bayes classifier",
-#    class = c("mlNaiveBayesWeka", "mlearning", "Weka_classifier"))
-#}
-
-mlKnn <- function(train, ...)
-  UseMethod("mlKnn")
-
-mlKnn.formula <- function(formula, data, k.nn = 5, ..., subset, na.action) {
-  mlearning(formula, data = data, method = "mlKnn", model.args =
-      list(formula  = formula, data = substitute(data),
-        subset = substitute(subset)), call = match.call(), k.nn = k.nn, ...,
-    subset = subset, na.action = substitute(na.action))
-}
-
-mlKnn.default <- function(train, response, k.nn = 5, ...) {
-  if (!is.factor(response))
-    stop("only factor response (classification) accepted for mlKnn")
-
-  dots <- list(...)
-  .args. <- dots$.args.
-  dots$.args. <- NULL
-  dots$k.nn <- k.nn
-  if (!length(.args.))
-    .args. <- list(levels = levels(response),
-      n = c(intial = NROW(train), final = NROW(train)),
-      type = "classification", na.action = "na.pass",
-      mlearning.call = match.call(), method = "mlKnn")
-
-  # matrix of numeric values
-  if (any(sapply(train, is.factor))) {
-    warning("force conversion from factor to numeric; may be not optimal or suitable")
-    train <- sapply(train, as.numeric)
-  }
-
-  # Create an object similar to the one obtained with ipred::ipredknn
-  res <- list(learn = list(y = response, X = train))
-  res$k <- k.nn
-  class(res) <- "simpleKnn"
-
-  # Return a mlearning object
-  structure(res, formula = .args.$formula, train = train,
-    response = response, levels = .args.$levels, n = .args.$n, args = dots,
-    optim = .args.$optim, numeric.only = TRUE, type = .args.$type,
-    pred.type = c(class = "class", prob = "prob"), summary = NULL,
-    na.action = .args.$na.action,
-    mlearning.call = .args.$mlearning.call, method = .args.$method,
-    algorithm = "k-nearest neighbours",
-    class = c("mlKnn", "mlearning", class(res)))
-}
-
-#summary.mlKnn <- function(object, ...)
-#  structure(cbind(Class = object$cl, as.data.frame(object$x)),
-#    class = c("summary.mlKnn", "data.frame"))
-
-#print.summary.mlKnn <- function(x, ...) {
-#  cat("Train dataset:\n")
-#  print(as.data.frame(x))
-#  invisible(x)
-#}
-
-predict.mlKnn <- function(object, newdata,
-  type = c("class", "prob", "both"),
-  method = c("direct", "cv"), na.action = na.exclude, ...) {
-  if (!inherits(object, "mlKnn"))
-    stop("'object' must be a 'mlKnn' object")
-
-  # If method == "cv", delegate to cvpredict()
-  method <- as.character(method)[1]
-  if (method == "cv") {
-    if (!missing(newdata))
-      stop("cannot handle new data with method = 'cv'")
-    return(cvpredict(object = object, type = type, na.action = na.action, ...))
-  }
-
-  # Recalculate newdata according to formula...
-  if (missing(newdata))
-    newdata <- object$learn$X # Use train
-  # Use model.frame but eliminate dependent variable, not required
-  # (second item in the formula)
-  newdata <- model.frame(formula = attr(object, "formula")[-2],
-    data = newdata, na.action = na.pass)[, names(object$learn$X)]
-  # Only numerical predictors
-  newdata <- sapply(as.data.frame(newdata), as.numeric)
-
-  # Determine how many data and perform na.action
-  n <- NROW(newdata)
-  newdata <- match.fun(na.action)(newdata)
-  ndrop <- attr(newdata, "na.action")
-
-  if (inherits(object, "simpleKnn")) {
-    res <- class::knn(object$learn$X, newdata, object$learn$y, k = object$k,
-      prob = TRUE)
-  } else {# ipred::ipredknn
-    res <- ipred::predict.ipredknn(object, newdata, type = "class")
-  }
-  type <- as.character(type[1])
-  if (type == "prob") {
-    return(attr(res, "prob"))
-  } else if (type == "class") {
-    attr(res, "prob") <- NULL
-  }
-
-  .expandFactor(res, n, ndrop)
 }

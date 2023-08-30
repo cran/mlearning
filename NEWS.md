@@ -1,3 +1,13 @@
+# mlearning 1.2.1
+
+-   Documentation is refactored using Roxygen2 and considerably enhanced.
+
+-   All camelCase function names now have their equivalence in snake_case, e.g., `mlRforest` -\> `ml_rforest()`, or `confusionImage()` -\> `confusion_image()` in order to adapt to the coding preferences of the user.
+
+# mlearning 1.2.0
+
+-   The `mlRpart()` function implements `rpart::rpart()` for using decision trees.
+
 # mlearning 1.1.1
 
 -   The description is extended.
@@ -6,7 +16,7 @@
 
 # mlearning 1.1.0
 
--   mlKnn() is implemented for K-nearest neigbours.
+-   `mlKnn()` is implemented for K-nearest neighbors.
 
 -   Several adjustments were required for compatibility with R 4.2.0 (it is not allowed any more to use vectors \> 1 with \|\| and &&).
 
@@ -24,9 +34,9 @@
 
 # mlearning 1.0.4
 
--   Sometines, data was not found (e.g., when called inside a learnr).
+-   Sometimes, data was not found (e.g., when called inside a {learnr} tutorial).
 
--   In mlearning(), data is forced with `as.data.frame()` (tibbles are not supported internally).
+-   In `mlearning()`, data is forced with `as.data.frame()` (tibbles are not supported internally).
 
 -   In the `mlXXX()` function, it was not possible to indicate something like `mlLda(data = iris, Species ~ .)`. Solved by adding `train =` argument in `mlXXX()`.
 
@@ -34,4 +44,4 @@
 
 # mlearning 1.0.3
 
--   NEWS.md file added. Repository moved to Github.
+-   NEWS.md file added. Repository moved to GitHub.
